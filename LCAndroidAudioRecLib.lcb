@@ -1,0 +1,118 @@
+library com.livecode.library.androidaudiorecorder
+
+metadata version is "1.0.0"
+metadata author is "LiveCode"
+metadata title is "Android Audio Recorder"
+
+metadata android.permissions is "RECORD_AUDIO"
+
+use com.livecode.foreign
+use com.livecode.java
+
+foreign handler _JNI_MediaRecorderConstructor() returns JObject binds to "java:android.media.MediaRecorder>new()"
+foreign handler _JNI_MediaRecorderSetRecordInput(in pRecorder as JObject, in pSource as CInt) returns nothing binds to "java:android.media.MediaRecorder>setAudioSource(I)V"
+foreign handler _JNI_MediaRecorderSetRecordFormat(in pRecorder as JObject, in pFormat as CInt) returns nothing binds to "java:android.media.MediaRecorder>setOutputFormat(I)V"
+foreign handler _JNI_MediaRecorderSetRecordEncoder(in pRecorder as JObject, in pEncoder as CInt) returns nothing binds to "java:android.media.MediaRecorder>setAudioEncoder(I)V"
+foreign handler _JNI_MediaRecorderSetRecordOutputFile(in pRecorder as JObject, in pFile as JString) returns nothing binds to "java:android.media.MediaRecorder>setOutputFile(Ljava/lang/String;)V"
+foreign handler _JNI_MediaRecorderPrepare(in pRecorder as JObject) returns nothing binds to "java:android.media.MediaRecorder>prepare()V"
+foreign handler _JNI_MediaRecorderStart(in pRecorder as JObject) returns nothing binds to "java:android.media.MediaRecorder>start()V"
+foreign handler _JNI_MediaRecorderStop(in pRecorder as JObject) returns nothing binds to "java:android.media.MediaRecorder>stop()V"
+foreign handler _JNI_MediaRecorderReset(in pRecorder as JObject) returns nothing binds to "java:android.media.MediaRecorder>reset()V"
+---
+foreign handler _JNI_MediaRecorderSetRecordChannels(in pRecorder as JObject, in pChannels as CInt) returns nothing binds to "java:android.media.MediaRecorder>setAudioChannels(I)V"
+foreign handler _JNI_MediaRecorderSetRecordRate(in pRecorder as JObject, in pRate as CInt) returns nothing binds to "java:android.media.MediaRecorder>setAudioSamplingRate(I)V"
+foreign handler _JNI_MediaRecorderSetRecordSampleSize(in pRecorder as JObject, in pRate as CInt) returns nothing binds to "java:android.media.MediaRecorder>setAudioEncodingBitRate(I)V"
+
+-- This will store an instance of a MediaRecorder
+private variable mRecorder as optional JObject
+
+constant kRecordInputs is { "Default" : 0, "Mic" : 1, "VoiceUplink" : 2, "VoiceDownlink" : 3, "VoiceCall" : 4, "Camcorder" : 5, "VoiceRecognition" : 6, "VoiceCommunication" : 7, "RemoteSubmix" : 8, "Unprocessed" : 9  }
+constant kRecordCompressionTypes is { "Default" : 0, "AMR NB" : 1, "AMR WB" : 2, "AAC" : 3, "HE AAC" : 4, "AAC ELD" : 5, "Vorbis" : 6 }
+constant kRecordFormats is { "ThreeGPP" : 1, "MPEG-4" : 2, "AMR WB" : 4, "AAC ADTS" : 6, "WebM" : 9 }
+constant kRecordChannels is { "Mono" : 1, "Stereo" : 2 }
+
+
+--- LCS call would be: AndroidSetRecordConfig the recordChannels, the recordRate, the recordSampleSize
+public handler AndroidSetRecordConfig(in pChannels as String, in pRate as Real, in pSampleSize as Integer)
+	unsafe
+		if mRecorder is nothing then
+			put _JNI_MediaRecorderConstructor() into mRecorder
+		end if
+		_JNI_MediaRecorderSetRecordChannels(mRecorder, kRecordChannels[pChannels])
+		_JNI_MediaRecorderSetRecordRate(mRecorder, pRate)
+		_JNI_MediaRecorderSetRecordSampleSize(mRecorder, pSampleSize)
+	end unsafe
+end handler
+
+public handler AndroidSetRecordInput(in pInputSource as String)
+	if pInputSource is not among the keys of kRecordInputs then
+		throw "unrecognised source"
+		return
+	end if
+	unsafe
+		if mRecorder is nothing then
+			put _JNI_MediaRecorderConstructor() into mRecorder
+		end if
+		_JNI_MediaRecorderSetRecordInput(mRecorder, kRecordInputs[pInputSource])
+	end unsafe
+end handler
+
+public handler AndroidSetRecordCompression(in pCompressType as String)
+	if pCompressType is not among the keys of kRecordCompressionTypes then
+		throw "unrecognised compression type"
+		return
+	end if
+	unsafe
+		if mRecorder is nothing then
+			put _JNI_MediaRecorderConstructor() into mRecorder
+		end if
+		_JNI_MediaRecorderSetRecordEncoder(mRecorder, kRecordCompressionTypes[pCompressType])
+	end unsafe
+end handler
+
+public handler AndroidSetRecordFileFormat(in pFileFormat as String)
+	if pFileFormat is not among the keys of kRecordFormats then
+		throw "unrecognised compression type"
+		return
+	end if
+	unsafe
+		if mRecorder is nothing then
+			put _JNI_MediaRecorderConstructor() into mRecorder
+		end if
+		_JNI_MediaRecorderSetRecordFormat(mRecorder, kRecordFormats[pFileFormat])
+	end unsafe
+end handler
+
+public handler AndroidStartRecording(in pFileName as String)
+	unsafe
+		-- Don't create a new recorder object if there already is one
+		if mRecorder is nothing then
+			put _JNI_MediaRecorderConstructor() into mRecorder
+		end if
+		_JNI_MediaRecorderSetRecordInput(mRecorder, 1)
+		_JNI_MediaRecorderSetRecordFormat(mRecorder, 1)
+		_JNI_MediaRecorderSetRecordEncoder(mRecorder, 1)
+
+		-- Convert the filename to a java string
+		variable tFileName as JString
+		put StringToJString(pFileName) into tFileName
+
+		_JNI_MediaRecorderSetRecordOutputFile(mRecorder, tFileName)
+		_JNI_MediaRecorderPrepare(mRecorder)
+		_JNI_MediaRecorderStart(mRecorder)
+	end unsafe
+end handler
+
+public handler AndroidStopRecording(in pFileName as String)
+	-- Don't do anything if there is no recorder object
+	if mRecorder is nothing then
+		throw "recording has not been started!"
+		return
+	end if
+
+	unsafe
+		_JNI_MediaRecorderStop(mRecorder)
+		_JNI_MediaRecorderReset(mRecorder)
+	end unsafe
+end handler
+end library
